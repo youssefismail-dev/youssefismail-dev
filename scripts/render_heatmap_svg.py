@@ -16,8 +16,6 @@ HERE = os.path.dirname(__file__)
 IN_PATH = os.path.join(HERE, "..", "data", "contributions.json")
 OUT_PATH = os.path.join(HERE, "..", "contrib-heatmap.svg")
 
-USER = "youssef"
-
 # GitHub-ish green ramp: empty -> brightest. Level 5 is a brighter neon top end.
 PALETTE = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353", "#69f0a0"]
 
@@ -44,24 +42,21 @@ ROW_T = 0.045   # per-row delay contribution (top -> bottom cascade)
 CELL_DUR = 0.42
 
 
-def level_cuts(days):
-    """Upper bounds for levels 1-4, from your own active days (25th/50th/75th/
-    95th percentile), like GitHub's own graph -- fixed thresholds would paint a
-    lighter year almost entirely level 1. Days above the 95th get the neon 5."""
-    counts = sorted(d["count"] for d in days if d["count"] > 0)
-    if not counts:
-        return []
-    return [counts[int(q * (len(counts) - 1))] for q in (0.25, 0.5, 0.75, 0.95)]
-
-
-def level_for(count, cuts):
+def level_for(count):
     if count == 0:
         return 0
-    return 1 + sum(count > c for c in cuts)
+    if count <= 5:
+        return 1
+    if count <= 15:
+        return 2
+    if count <= 30:
+        return 3
+    if count <= 50:
+        return 4
+    return 5
 
 
 def build_grid(days):
-    cuts = level_cuts(days)
     first = datetime.date.fromisoformat(days[0]["date"])
     lead_pad = (first.weekday() + 1) % 7  # sunday=0
     grid = []
@@ -71,7 +66,7 @@ def build_grid(days):
         weekday = (date.weekday() + 1) % 7
         while len(col) < weekday:
             col.append(None)
-        col.append((d["date"], d["count"], level_for(d["count"], cuts)))
+        col.append((d["date"], d["count"], level_for(d["count"])))
         if len(col) == 7:
             grid.append(col)
             col = []
@@ -130,7 +125,7 @@ def render(data):
     for i, dotcol in enumerate(["#ff5f56", "#ffbd2e", "#27c93f"]):
         parts.append(f'<circle cx="{PAD + i*16}" cy="{TITLEBAR_H/2}" r="5" fill="{dotcol}"/>')
     parts.append(f'<text x="{canvas_w/2}" y="{TITLEBAR_H/2 + 4}" fill="{MUTED}" font-size="12" '
-                 f'text-anchor="middle">{USER}@github: ~/contributions --graph</text>')
+                 f'text-anchor="middle">youssef@github: ~/contributions --graph</text>')
 
     grid_top = TITLEBAR_H + TOP_LABEL_H
     grid_left = PAD + LEFT_LABEL_W
@@ -187,9 +182,9 @@ def render(data):
                  f'{rng["start"]} &#8594; {rng["end"]}</text>')
     ly += 24
     parts.append(f'<text x="{PAD}" y="{ly}" font-size="13" fill="{MUTED}">current streak '
-                 f'<tspan fill="{ACCENT}" font-weight="700">{cs} day{"s" if cs != 1 else ""}</tspan>'
+                 f'<tspan fill="{ACCENT}" font-weight="700">{cs} days</tspan>'
                  f'<tspan fill="{MUTED}">   &#183;   longest </tspan>'
-                 f'<tspan fill="{ACCENT}" font-weight="700">{ls} day{"s" if ls != 1 else ""}</tspan></text>')
+                 f'<tspan fill="{ACCENT}" font-weight="700">{ls} days</tspan></text>')
     parts.append(f'<text x="{canvas_w - PAD}" y="{ly}" font-size="12" fill="{MUTED}" text-anchor="end">'
                  f'best day <tspan fill="{GOLD}" font-weight="700">{best["count"]}</tspan> on {best["date"]}</text>')
 
