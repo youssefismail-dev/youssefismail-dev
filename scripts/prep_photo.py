@@ -24,11 +24,12 @@ from PIL import Image
 from rembg import new_session, remove
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-INP = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "Youssef Ismail.jpeg")
+INP = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "Stylized Smiling Portrait with Glasses.png")
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "..", "source-prepped.png")
 
 LINE_WEIGHT = 0.6     # how hard drawn lines are pushed toward black
-HEAD_FRAC = 0.36      # top share of the cutout to frame (1.0 = whole subject)
+HEAD_FRAC = 0.62      # top share of the cutout to frame (1.0 = whole subject); 0.62 frames
+                      # the head-and-shoulders cartoon as a head-only portrait, cut at the chin
 
 # 1. cut out the subject
 cut = remove(Image.open(INP).convert("RGBA"), session=new_session("u2net"))
