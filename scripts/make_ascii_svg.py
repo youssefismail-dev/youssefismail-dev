@@ -1,7 +1,7 @@
 """
-Convert a portrait photo into a CLEAN, monochrome ASCII-art SVG (one light-gray
-color, subject isolated on a dark background) that "types" itself in like a
-terminal, then holds.
+Convert a portrait photo into a CLEAN, monochrome ASCII-art SVG (Andrew6rant
+style: one light-gray color, subject isolated on a dark background) that "types"
+itself in like a terminal, then holds.
 
 Monochrome is deliberate -- per-character rainbow color is what makes ASCII
 portraits look noisy. One fill color + a good density ramp + high contrast (so a
@@ -11,11 +11,8 @@ GitHub renders SVGs embedded via <img> and runs their SMIL animations there (JS
 does not run). Each row is revealed with a left-to-right clip wipe plus a small
 block cursor riding the wipe edge, staggered top -> bottom, so the whole
 portrait prints once and freezes.
-
-    python scripts/make_ascii_svg.py [source-prepped.png] [youssef-ascii.svg]
-    STATIC=1 python scripts/make_ascii_svg.py    # frozen frame for previews
 """
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 import html
 import os
 import sys
@@ -26,13 +23,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "source-prepped.png")
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "..", "youssef-ascii.svg")
 
-USER = "youssef"
-NAME = "Youssef Ismail"
-
-COLS = 100
-ROWS = 53
-CELL_W = 8
-CELL_H = 15
+# more columns = more detail (eyes need ~6+ chars across to read). the art
+# stays ART_W px wide either way; cells shrink, keeping a ~1:1.875 char aspect.
+COLS = int(os.environ.get("COLS", 180))
+ART_W_TARGET = 800
+CELL_W = ART_W_TARGET / COLS
+CELL_H = CELL_W * 15 / 8
+ROWS = round(COLS * 8 / 15)
 RAMP = " .`:-=+*cs#%@"  # bright(sparse) -> dark(dense); leading space clears bg
 
 # the prepped image already has bg removed + CLAHE local contrast, so only
@@ -40,6 +37,7 @@ RAMP = " .`:-=+*cs#%@"  # bright(sparse) -> dark(dense); leading space clears bg
 CONTRAST = 1.05
 BRIGHTNESS = 1.0
 GAMMA = 1.18          # >1 brightens mids -> face lands in sparser chars
+SHARPEN = False
 WHITE_FLOOR = 0.80    # luminance above this is forced to blank (space)
 
 PAD = 20
@@ -54,21 +52,23 @@ BG = "#0d1117"
 BG2 = "#111722"
 FRAME = "#30363d"
 TITLE_TEXT = "#7d8590"
-INK = "#c9d1d9"      # the single ascii color
+INK = "#c9d1d9"      # the single ascii color (matches Andrew6rant)
 CURSOR = "#c9d1d9"
 
 # ---- reveal timing (one-shot; a cursor rasters top -> bottom) -------------
-ROW_DUR = 0.11
-STAGGER = 0.11       # == ROW_DUR -> a single cursor sweeping down
-
-STATIC = bool(os.environ.get("STATIC"))  # emit frozen state for previews
+ROW_DUR = 5.8 / ROWS  # whole portrait prints in ~6s at any resolution
+STAGGER = ROW_DUR       # == ROW_DUR -> a single cursor sweeping down
 
 # ---- 1. sample the image into a COLS x ROWS grayscale grid ----------------
 im = Image.open(SRC).convert("L")               # grayscale
+if SHARPEN:
+    im = im.filter(ImageFilter.UnsharpMask(radius=2, percent=140, threshold=2))
 im = ImageEnhance.Brightness(im).enhance(BRIGHTNESS)
 im = ImageEnhance.Contrast(im).enhance(CONTRAST)
 im = im.resize((COLS, ROWS), Image.LANCZOS)
 px = im.load()
+
+STATIC = bool(os.environ.get("STATIC"))  # emit frozen state for previews
 
 rows_txt = []
 for y in range(ROWS):
@@ -106,7 +106,7 @@ parts.append(f'<line x1="0" y1="{TITLEBAR_H}" x2="{CANVAS_W}" y2="{TITLEBAR_H}" 
 for i, dotcol in enumerate(["#ff5f56", "#ffbd2e", "#27c93f"]):
     parts.append(f'<circle cx="{PAD + i*16}" cy="{TITLEBAR_H/2}" r="5" fill="{dotcol}"/>')
 parts.append(f'<text x="{CANVAS_W/2}" y="{TITLEBAR_H/2 + 4}" fill="{TITLE_TEXT}" font-size="12" '
-             f'text-anchor="middle">{USER}@github: ~$ ./portrait.sh</text>')
+             f'text-anchor="middle">youssef@github: ~$ ./portrait.sh</text>')
 
 # one <text> per row (single color -> no per-char markup, tiny file)
 font_size = CELL_H * 0.86
@@ -136,17 +136,14 @@ for ry, line in enumerate(rows_txt):
         f'<set attributeName="opacity" to="0" begin="{delay+ROW_DUR:.3f}s"/></rect>'
     )
 
-# status bar with a steady blinking cursor. textLength pins the prompt to a
-# 0.6em advance so the cursor lands right after the name in any monospace font.
+# status bar with a steady blinking cursor
 status_line_y = TITLEBAR_H + ART_H + PAD * 0.35
 status_y = status_line_y + 19
-status = f"{USER}@github:~$ whoami "
-status_w = (len(status) + len(NAME)) * 13 * 0.6
 parts.append(f'<line x1="0" y1="{status_line_y:.1f}" x2="{CANVAS_W}" y2="{status_line_y:.1f}" stroke="{FRAME}"/>')
-parts.append(f'<text xml:space="preserve" x="{PAD}" y="{status_y:.1f}" fill="{TITLE_TEXT}" font-size="13" '
-             f'textLength="{status_w:.1f}" lengthAdjust="spacing">'
-             f'{status}<tspan fill="{INK}">{NAME}</tspan></text>')
-parts.append(f'<rect x="{PAD + status_w + 13 * 0.6:.1f}" y="{status_y-12:.1f}" width="8" height="14" fill="{INK}">'
+parts.append(f'<text x="{PAD}" y="{status_y:.1f}" fill="{TITLE_TEXT}" font-size="13">'
+             f'youssef@github:~$ whoami <tspan fill="{INK}">Youssef Ismail</tspan></text>')
+status_chars = len("youssef@github:~$ whoami Youssef Ismail ")   # cursor sits after the name
+parts.append(f'<rect x="{PAD + status_chars * 13 * 0.6:.1f}" y="{status_y-12:.1f}" width="8" height="14" fill="{INK}">'
              f'<animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.51;1" '
              f'dur="1s" repeatCount="indefinite"/></rect>')
 
