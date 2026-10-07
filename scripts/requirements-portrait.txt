@@ -1,0 +1,6 @@
+# portrait-only: run once locally when the photo changes (not by the daily workflow)
+#   python scripts/prep_photo.py && python scripts/make_ascii_svg.py
+rembg[cpu]==2.0.85
+opencv-python-headless==5.0.0.93
+pillow==12.3.0
+numpy==2.5.3
